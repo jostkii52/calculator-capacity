@@ -1,0 +1,790 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Калькулятор грузоподъемности судна</title>
+
+<!-- БИБЛИОТЕКИ -->
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<script src="https://cdn.sheetjs.com/xlsx-0.20.2/package/dist/xlsx.full.min.js"></script>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+
+<style>
+:root {
+    --bg-primary: #f5f7fa;
+    --bg-secondary: #ffffff;
+    --text-primary: #1a2a3a;
+    --text-secondary: #4a5568;
+    --card-bg: #ffffff;
+    --border-color: #e2e8f0;
+    --input-bg: #ffffff;
+    --input-border: #cbd5e0;
+    --primary-color: #2f6df6;
+    --success-color: #10b981;
+    --danger-color: #ef4444;
+    --warning-color: #f59e0b;
+    --table-header: #f1f5f9;
+    --history-item: #f8fafc;
+}
+
+body.dark-theme {
+    --bg-primary: #0f172a;
+    --bg-secondary: #1e293b;
+    --text-primary: #f1f5f9;
+    --text-secondary: #cbd5e1;
+    --card-bg: #1e293b;
+    --border-color: #334155;
+    --input-bg: #0f172a;
+    --input-border: #475569;
+    --primary-color: #3b82f6;
+    --success-color: #34d399;
+    --danger-color: #f87171;
+    --warning-color: #fbbf24;
+    --table-header: #334155;
+    --history-item: #0f172a;
+}
+
+* { box-sizing: border-box; }
+
+body {
+    margin: 0;
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    background: var(--bg-primary);
+    color: var(--text-primary);
+    transition: all 0.3s ease;
+}
+
+.container { max-width: 1500px; margin: auto; padding: 20px; }
+
+/* Модальное окно - ИСПРАВЛЕНО */
+.modal {
+    display: none;
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0,0,0,0.7);
+    z-index: 1000;
+    justify-content: center;
+    align-items: center;
+}
+
+.modal.show {
+    display: flex;
+}
+
+.modal-content {
+    background: var(--card-bg);
+    padding: 30px;
+    border-radius: 16px;
+    width: 400px;
+    max-width: 90%;
+    border: 1px solid var(--border-color);
+}
+
+.modal-content h2 { margin-top: 0; color: var(--primary-color); }
+.modal-content input {
+    width: 100%;
+    padding: 12px;
+    margin: 10px 0;
+    border-radius: 8px;
+    border: 1px solid var(--input-border);
+    background: var(--input-bg);
+    color: var(--text-primary);
+}
+.modal-content button {
+    width: 100%;
+    padding: 12px;
+    margin-top: 10px;
+}
+
+.close {
+    float: right;
+    font-size: 28px;
+    cursor: pointer;
+    color: var(--text-secondary);
+}
+
+/* Шапка */
+.header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 15px;
+    margin-bottom: 20px;
+}
+
+.user-info {
+    display: flex;
+    gap: 15px;
+    align-items: center;
+    background: var(--card-bg);
+    padding: 8px 16px;
+    border-radius: 12px;
+    border: 1px solid var(--border-color);
+}
+
+.avatar {
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    background: var(--primary-color);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: white;
+    font-weight: bold;
+}
+
+.logout-btn {
+    background: var(--danger-color);
+    color: white;
+    border: none;
+    border-radius: 8px;
+    padding: 6px 12px;
+    cursor: pointer;
+}
+
+.currency-panel { display: flex; gap: 15px; background: var(--card-bg); padding: 8px 16px; border-radius: 12px; }
+.currency-item { font-size: 14px; font-weight: bold; }
+.theme-toggle { background: var(--card-bg); border: 1px solid var(--border-color); border-radius: 50px; padding: 8px 16px; cursor: pointer; }
+
+/* Табы */
+.tabs {
+    display: flex;
+    gap: 5px;
+    margin-bottom: 20px;
+    flex-wrap: wrap;
+}
+.tab-btn {
+    background: var(--card-bg);
+    border: 1px solid var(--border-color);
+    padding: 10px 20px;
+    border-radius: 8px;
+    cursor: pointer;
+    transition: all 0.3s;
+}
+.tab-btn.active {
+    background: var(--primary-color);
+    color: white;
+    border-color: var(--primary-color);
+}
+.tab-content { display: none; }
+.tab-content.active { display: block; }
+
+/* Карточки избранного */
+.favorites-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+    gap: 15px;
+    margin-top: 15px;
+}
+.favorite-card {
+    background: var(--history-item);
+    border-radius: 10px;
+    padding: 15px;
+    border-left: 4px solid var(--primary-color);
+    cursor: pointer;
+    transition: transform 0.2s;
+}
+.favorite-card:hover { transform: translateX(5px); }
+.favorite-card .delete-fav {
+    float: right;
+    background: var(--danger-color);
+    color: white;
+    border: none;
+    border-radius: 5px;
+    padding: 3px 8px;
+    cursor: pointer;
+    font-size: 11px;
+}
+
+/* Диаграмма Ганта */
+.gantt-container {
+    background: var(--card-bg);
+    border-radius: 8px;
+    padding: 15px;
+    margin-top: 15px;
+}
+.gantt-bar {
+    display: flex;
+    margin: 10px 0;
+    align-items: center;
+}
+.gantt-label {
+    width: 120px;
+    font-size: 13px;
+}
+.gantt-progress {
+    flex: 1;
+    height: 30px;
+    background: var(--border-color);
+    border-radius: 6px;
+    overflow: hidden;
+}
+.gantt-fill {
+    height: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: white;
+    font-size: 12px;
+    font-weight: bold;
+}
+.prepare-fill { background: #f59e0b; }
+.load-fill { background: #10b981; }
+.sail-fill { background: #3b82f6; }
+.unload-fill { background: #ef4444; }
+
+.card { background: var(--card-bg); padding: 20px; border-radius: 12px; margin-bottom: 20px; border: 1px solid var(--border-color); }
+.grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+.input-small { width: 100%; padding: 10px; margin: 5px 0 15px 0; border-radius: 8px; border: 1px solid var(--input-border); background: var(--input-bg); color: var(--text-primary); }
+select { width: 100%; padding: 10px; border-radius: 8px; border: 1px solid var(--input-border); background: var(--input-bg); color: var(--text-primary); margin-bottom: 15px; }
+label { font-size: 13px; font-weight: 500; color: var(--text-secondary); display: block; margin-bottom: 4px; }
+button { padding: 10px 20px; border: none; border-radius: 8px; cursor: pointer; font-weight: 600; transition: all 0.3s; }
+.primary { background: var(--primary-color); color: white; }
+.primary:hover { opacity: 0.85; }
+#map { height: 400px; border-radius: 12px; }
+table { width: 100%; border-collapse: collapse; }
+th, td { padding: 10px; border-bottom: 1px solid var(--border-color); text-align: left; }
+.history-item { background: var(--history-item); padding: 12px; border-radius: 10px; margin-bottom: 10px; border-left: 4px solid var(--primary-color); }
+.cargo-weight { font-size: 18px; font-weight: bold; padding: 10px; background: var(--bg-primary); border-radius: 8px; text-align: center; margin-top: 10px; }
+.button-group { display: flex; flex-wrap: wrap; gap: 10px; margin-bottom: 20px; }
+.warning { color: var(--warning-color); }
+.danger { color: var(--danger-color); }
+.success { color: var(--success-color); }
+</style>
+</head>
+
+<body>
+<div class="container">
+    <!-- МОДАЛЬНОЕ ОКНО ВХОДА - ИСПРАВЛЕНО -->
+    <div id="authModal" class="modal">
+        <div class="modal-content">
+            <span class="close" onclick="closeAuthModal()">&times;</span>
+            <h2>🔐 Вход в систему</h2>
+            <input type="text" id="loginUsername" placeholder="Имя пользователя">
+            <input type="password" id="loginPassword" placeholder="Пароль">
+            <button class="primary" onclick="login()">Войти</button>
+            <button onclick="showRegister()">Нет аккаунта? Зарегистрироваться</button>
+        </div>
+    </div>
+
+    <!-- ШАПКА -->
+    <div class="header">
+        <h1>🚢 Калькулятор грузоподъемности судна</h1>
+        <div style="display: flex; gap: 15px; align-items: center;">
+            <div id="userInfoDisplay" class="user-info" style="display: none;">
+                <div class="avatar" id="userAvatar">👤</div>
+                <span id="userName"></span>
+                <button class="logout-btn" onclick="logout()">Выйти</button>
+            </div>
+            <div class="currency-panel">
+                <div class="currency-item">💵 USD/RUB: <span id="usdRate">Загрузка...</span></div>
+                <div class="currency-item">💶 EUR/RUB: <span id="eurRate">Загрузка...</span></div>
+            </div>
+            <button class="theme-toggle" onclick="toggleTheme()">🌓 Тема</button>
+        </div>
+    </div>
+
+    <!-- ТАБЫ -->
+    <div class="tabs">
+        <button class="tab-btn active" onclick="openTab('calc')">📊 Калькулятор</button>
+        <button class="tab-btn" onclick="openTab('favorites')">⭐ Избранное</button>
+        <button class="tab-btn" onclick="openTab('history')">📜 История</button>
+        <button class="tab-btn" onclick="openTab('gantt')">📅 Диаграмма Ганта</button>
+    </div>
+
+    <!-- ВКЛАДКА КАЛЬКУЛЯТОР -->
+    <div id="calcTab" class="tab-content active">
+        <div class="card grid">
+            <div>
+                <h2>📍 Маршрут</h2>
+                <label>Порт отправления</label>
+                <select id="from"></select>
+                <label>Порт назначения</label>
+                <select id="to"></select>
+                <label>Валюта расчета</label>
+                <select id="currencySelect" onchange="updateCurrencyDisplay()">
+                    <option value="RUB">🇷🇺 RUB (Рубль)</option>
+                    <option value="USD">🇺🇸 USD (Доллар)</option>
+                    <option value="EUR">🇪🇺 EUR (Евро)</option>
+                </select>
+                <button class="primary" style="margin-top: 10px;" onclick="saveCurrentAsFavorite()">⭐ Сохранить в избранное</button>
+            </div>
+            <div id="map"></div>
+        </div>
+
+        <div class="card grid">
+            <div>
+                <h2>⚓ Судно</h2>
+                <select id="shipType">
+                    <option value="bulk">Балкер</option>
+                    <option value="tanker">Танкер</option>
+                    <option value="container">Контейнеровоз</option>
+                </select>
+                <label>Дедвейт (тонн)</label>
+                <input class="input-small" id="dwt" value="20000" type="number" oninput="calculateCargoWeight()">
+                <label>Вес судна (тонн)</label>
+                <input class="input-small" id="lw" value="9000" type="number" oninput="calculateCargoWeight()">
+                <label>Балласт (тонн)</label>
+                <input class="input-small" id="ballast" value="3000" type="number" oninput="calculateCargoWeight()">
+                <label>Осадка (метров)</label>
+                <input class="input-small" id="draft" value="12" type="number">
+                <div class="cargo-weight" id="cargoWeightDisplay">📦 Вес груза: 0 тонн</div>
+            </div>
+            <div>
+                <h2>⚙️ Эксплуатация</h2>
+                <label>Скорость (узлы)</label>
+                <input class="input-small" id="speed" value="18" type="number">
+                <label>Расход топлива (тонн/день)</label>
+                <input class="input-small" id="fuelCons" value="28" type="number">
+                <label>Цена топлива (за тонну)</label>
+                <input class="input-small" id="fuelPrice" value="60000" type="number">
+                <label>Фрахт (за тонну)</label>
+                <input class="input-small" id="freight" value="15000" type="number">
+                <label>Экипаж</label>
+                <input class="input-small" id="crew" value="500000" type="number">
+                <label>Страховка</label>
+                <input class="input-small" id="insurance" value="300000" type="number">
+                <label>Портовые сборы</label>
+                <input class="input-small" id="portFees" value="200000" type="number">
+            </div>
+        </div>
+
+        <div class="button-group">
+            <button class="primary" onclick="calculateAll()">📊 Рассчитать</button>
+            <button class="primary" onclick="exportExcel()">📎 Экспорт в Excel</button>
+        </div>
+
+        <div class="card"><h2>📊 Результат</h2><div id="result"></div><div id="warnings"></div></div>
+        <div class="card"><h2>💰 Таблица расходов</h2><table id="costTable"><tr><td>Выполните расчет</td></table></table></div>
+        <div class="card"><h2>📈 График прибыли</h2><canvas id="profitChart" width="400" height="200"></canvas></div>
+    </div>
+
+    <!-- ВКЛАДКА ИЗБРАННОЕ -->
+    <div id="favoritesTab" class="tab-content">
+        <div class="card">
+            <h2>⭐ Избранные рейсы</h2>
+            <div id="favoritesList" class="favorites-grid"></div>
+        </div>
+    </div>
+
+    <!-- ВКЛАДКА ИСТОРИЯ -->
+    <div id="historyTab" class="tab-content">
+        <div class="card">
+            <h2>📜 История расчетов</h2>
+            <div id="historyList"></div>
+        </div>
+    </div>
+
+    <!-- ВКЛАДКА ДИАГРАММА ГАНТА -->
+    <div id="ganttTab" class="tab-content">
+        <div class="card">
+            <h2>📅 Диаграмма Ганта - Визуализация рейса</h2>
+            <div id="ganttChart" class="gantt-container"></div>
+            <p style="margin-top: 15px; color: var(--text-secondary);">* Данные обновляются после расчета рейса</p>
+        </div>
+    </div>
+</div>
+
+<script>
+// ================= ПОРТЫ =================
+const ports = [
+    {name:"Роттердам",lat:51.95,lon:4.14,draft:15},
+    {name:"Гамбург",lat:53.54,lon:9.99,draft:13},
+    {name:"Антверпен",lat:51.26,lon:4.40,draft:14},
+    {name:"Марсель",lat:43.30,lon:5.37,draft:14},
+    {name:"Барселона",lat:41.35,lon:2.16,draft:13},
+    {name:"Генуя",lat:44.40,lon:8.93,draft:15},
+    {name:"Пирей",lat:37.94,lon:23.64,draft:18},
+    {name:"Стамбул",lat:41.01,lon:28.97,draft:15},
+    {name:"Шанхай",lat:31.23,lon:121.47,draft:16},
+    {name:"Сингапур",lat:1.29,lon:103.85,draft:18},
+    {name:"Нью-Йорк",lat:40.71,lon:-74.01,draft:15},
+    {name:"Дубай",lat:25.27,lon:55.30,draft:14}
+];
+
+// ================= ПЕРЕМЕННЫЕ =================
+let currentUser = null;
+let exchangeRates = { USD: 90, EUR: 98 };
+let map = null;
+let routeLine = null;
+let chart = null;
+let lastGanttData = null;
+
+// ================= АВТОРИЗАЦИЯ =================
+function loadUsers() { 
+    return JSON.parse(localStorage.getItem('users') || '[]'); 
+}
+function saveUsers(users) { 
+    localStorage.setItem('users', JSON.stringify(users)); 
+}
+
+function showRegister() {
+    let username = prompt("Придумайте имя пользователя:");
+    if (!username) return;
+    let password = prompt("Придумайте пароль:");
+    if (!password) return;
+    let users = loadUsers();
+    if (users.find(u => u.username === username)) { 
+        alert("Пользователь уже существует"); 
+        return; 
+    }
+    users.push({ username, password });
+    saveUsers(users);
+    alert("Регистрация успешна! Теперь войдите.");
+}
+
+function login() {
+    let username = document.getElementById('loginUsername').value;
+    let password = document.getElementById('loginPassword').value;
+    let users = loadUsers();
+    let user = users.find(u => u.username === username && u.password === password);
+    if (user) {
+        currentUser = username;
+        localStorage.setItem('currentUser', username);
+        document.getElementById('authModal').classList.remove('show');
+        document.getElementById('authModal').style.display = 'none';
+        document.getElementById('userInfoDisplay').style.display = 'flex';
+        document.getElementById('userName').innerText = username;
+        document.getElementById('userAvatar').innerText = username[0].toUpperCase();
+        loadUserData();
+        alert(`Добро пожаловать, ${username}!`);
+    } else { 
+        alert("Неверное имя или пароль"); 
+    }
+}
+
+function logout() {
+    currentUser = null;
+    localStorage.removeItem('currentUser');
+    document.getElementById('userInfoDisplay').style.display = 'none';
+    document.getElementById('authModal').style.display = 'flex';
+    document.getElementById('authModal').classList.add('show');
+}
+
+function closeAuthModal() { 
+    document.getElementById('authModal').style.display = 'none';
+    document.getElementById('authModal').classList.remove('show');
+}
+
+// ================= ПОЛЬЗОВАТЕЛЬСКИЕ ДАННЫЕ =================
+function getUserFavorites() { 
+    if (!currentUser) return [];
+    return JSON.parse(localStorage.getItem(`favorites_${currentUser}`) || '[]'); 
+}
+function saveUserFavorites(favs) { 
+    localStorage.setItem(`favorites_${currentUser}`, JSON.stringify(favs)); 
+}
+function getUserHistory() { 
+    if (!currentUser) return [];
+    return JSON.parse(localStorage.getItem(`history_${currentUser}`) || '[]'); 
+}
+function saveUserHistory(hist) { 
+    localStorage.setItem(`history_${currentUser}`, JSON.stringify(hist.slice(0, 20))); 
+}
+
+function loadUserData() { 
+    renderFavorites(); 
+    renderUserHistory(); 
+}
+
+function saveCurrentAsFavorite() {
+    if (!currentUser) { alert("Сначала войдите в систему!"); return; }
+    let from = document.getElementById('from').value;
+    let to = document.getElementById('to').value;
+    if (!from || !to) { 
+        alert("Сначала выберите порты"); 
+        return; 
+    }
+    let favs = getUserFavorites();
+    let exists = favs.find(f => f.from === from && f.to === to);
+    if (exists) { 
+        alert("Этот маршрут уже в избранном"); 
+        return; 
+    }
+    favs.push({ from, to, date: new Date().toLocaleString() });
+    saveUserFavorites(favs);
+    renderFavorites();
+    alert("Маршрут добавлен в избранное!");
+}
+
+function renderFavorites() {
+    let favs = getUserFavorites();
+    let container = document.getElementById('favoritesList');
+    if (!container) return;
+    if (!currentUser) { 
+        container.innerHTML = '<div class="card">Войдите в систему, чтобы видеть избранное</div>'; 
+        return; 
+    }
+    if (favs.length === 0) { 
+        container.innerHTML = '<div class="card">Нет избранных маршрутов. Добавьте их на вкладке "Калькулятор"</div>'; 
+        return; 
+    }
+    container.innerHTML = favs.map((fav, i) => `
+        <div class="favorite-card" onclick="loadFavoriteRoute(${i})">
+            <button class="delete-fav" onclick="event.stopPropagation(); deleteFavorite(${i})">✖</button>
+            <strong>${fav.from} → ${fav.to}</strong><br>
+            <small>${fav.date}</small>
+        </div>
+    `).join('');
+}
+
+function loadFavoriteRoute(index) {
+    let favs = getUserFavorites();
+    let route = favs[index];
+    document.getElementById('from').value = route.from;
+    document.getElementById('to').value = route.to;
+    openTab('calc');
+    alert(`Загружен маршрут: ${route.from} → ${route.to}`);
+}
+
+function deleteFavorite(index) {
+    let favs = getUserFavorites();
+    favs.splice(index, 1);
+    saveUserFavorites(favs);
+    renderFavorites();
+}
+
+function renderUserHistory() {
+    let history = getUserHistory();
+    let container = document.getElementById('historyList');
+    if (!container) return;
+    if (!currentUser) { 
+        container.innerHTML = '<div class="card">Войдите в систему, чтобы видеть историю</div>'; 
+        return; 
+    }
+    if (history.length === 0) { 
+        container.innerHTML = '<div class="card">Нет истории расчетов</div>'; 
+        return; 
+    }
+    container.innerHTML = history.map(h => `<div class="history-item"><b>${h.from} → ${h.to}</b><br>💰 Прибыль: ${h.profit}<br>📅 ${h.date}</div>`).join('');
+}
+
+function saveToHistory(from, to, profit, currency) {
+    if (!currentUser) return;
+    let history = getUserHistory();
+    history.unshift({ from, to, profit, currency, date: new Date().toLocaleString() });
+    saveUserHistory(history);
+    renderUserHistory();
+}
+
+// ================= КУРСЫ ВАЛЮТ =================
+async function fetchExchangeRates() {
+    try {
+        let response = await fetch('https://status.neuralgeneration.com/api/currency');
+        if (response.ok) { 
+            let data = await response.json(); 
+            exchangeRates.USD = data.USD?.RUB || 90; 
+            exchangeRates.EUR = data.EUR?.RUB || 98; 
+        }
+    } catch(e) { 
+        exchangeRates.USD = 90; 
+        exchangeRates.EUR = 98; 
+    }
+    document.getElementById('usdRate').innerHTML = exchangeRates.USD.toFixed(2);
+    document.getElementById('eurRate').innerHTML = exchangeRates.EUR.toFixed(2);
+}
+
+function convertCurrency(amountRUB, target) { 
+    if(target === 'RUB') return amountRUB; 
+    if(target === 'USD') return amountRUB / exchangeRates.USD; 
+    return amountRUB / exchangeRates.EUR; 
+}
+
+function updateCurrencyDisplay() { 
+    if(document.getElementById('result').innerHTML.includes('Прибыль')) calculateAll(); 
+}
+
+// ================= ТЕМА =================
+function toggleTheme() { 
+    document.body.classList.toggle('dark-theme'); 
+    localStorage.setItem('theme', document.body.classList.contains('dark-theme') ? 'dark' : 'light'); 
+}
+
+function loadTheme() { 
+    if(localStorage.getItem('theme') === 'dark') document.body.classList.add('dark-theme'); 
+}
+
+// ================= КАРТА =================
+function initMap() { 
+    if(typeof L !== 'undefined' && document.getElementById('map') && !map) { 
+        map = L.map('map').setView([30, 10], 2); 
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map); 
+    } 
+}
+
+function drawRoute(a, b) { 
+    if(!map) initMap(); 
+    if(routeLine) map.removeLayer(routeLine); 
+    routeLine = L.polyline([[a.lat, a.lon], [b.lat, b.lon]]).addTo(map); 
+    map.fitBounds(routeLine.getBounds()); 
+}
+
+// ================= ВЕС ГРУЗА =================
+function calculateCargoWeight() {
+    let dwt = +document.getElementById('dwt').value || 0;
+    let lw = +document.getElementById('lw').value || 0;
+    let ballast = +document.getElementById('ballast').value || 0;
+    let cargo = dwt - lw - ballast;
+    if(cargo < 0) cargo = 0;
+    document.getElementById('cargoWeightDisplay').innerHTML = `📦 Вес груза: ${cargo.toLocaleString('ru-RU')} тонн`;
+    return cargo;
+}
+
+// ================= РАСЧЕТЫ =================
+function haversine(a, b) { 
+    const R = 6371; 
+    let dLat = (b.lat - a.lat) * Math.PI / 180; 
+    let dLon = (b.lon - a.lon) * Math.PI / 180; 
+    let x = Math.sin(dLat / 2) ** 2 + Math.cos(a.lat * Math.PI / 180) * Math.cos(b.lat * Math.PI / 180) * Math.sin(dLon / 2) ** 2; 
+    return 2 * R * Math.atan2(Math.sqrt(x), Math.sqrt(1 - x)); 
+}
+
+function calculateAll() {
+    let from = ports.find(p => p.name === document.getElementById('from').value);
+    let to = ports.find(p => p.name === document.getElementById('to').value);
+    if(!from || !to) { 
+        alert("Выберите порты"); 
+        return; 
+    }
+    
+    let cargo = calculateCargoWeight();
+    let km = haversine(from, to);
+    let days = km / ((+document.getElementById('speed').value || 18) * 1.852 * 24);
+    let revenueRUB = cargo * (+document.getElementById('freight').value || 0);
+    let fuel = days * (+document.getElementById('fuelCons').value || 28) * (+document.getElementById('fuelPrice').value || 60000);
+    let costsRUB = fuel + (+document.getElementById('crew').value || 0) + (+document.getElementById('insurance').value || 0) + (+document.getElementById('portFees').value || 0);
+    let profitRUB = revenueRUB - costsRUB;
+    let efficiency = (cargo / (+document.getElementById('dwt').value || 1)) * 100;
+    let currency = document.getElementById('currencySelect').value;
+    let revenue = convertCurrency(revenueRUB, currency);
+    let costs = convertCurrency(costsRUB, currency);
+    let profit = convertCurrency(profitRUB, currency);
+    let symbol = {RUB:'₽', USD:'$', EUR:'€'}[currency];
+    
+    let warnings = "";
+    let draft = +document.getElementById('draft').value || 0;
+    if(draft > from.draft || draft > to.draft) warnings += '<div class="danger">⚠️ Превышена осадка!</div>';
+    if(profitRUB < 0) warnings += '<div class="danger">📉 Рейс убыточный!</div>';
+    if(efficiency < 50) warnings += '<div class="warning">📦 Низкая загрузка</div>';
+    document.getElementById('warnings').innerHTML = warnings;
+    
+    document.getElementById('result').innerHTML = `
+        <div class="success" style="font-size:24px;">💰 Прибыль: ${profit.toFixed(2)} ${symbol}</div>
+        <div>📊 Загрузка: ${efficiency.toFixed(1)}%</div>
+        <div>📦 Вес груза: ${cargo.toLocaleString('ru-RU')} тонн</div>
+        <div>📏 Расстояние: ${km.toFixed(0)} км</div>
+        <div>⏱️ Время в пути: ${days.toFixed(1)} дней</div>
+    `;
+    
+    document.getElementById('costTable').innerHTML = `
+        <table><th>Статья</th><th>Сумма (${symbol})</th></tr>
+        <tr><td>Топливо</td><td>${convertCurrency(fuel, currency).toFixed(2)}</td></tr>
+        <tr><td>Экипаж</td><td>${convertCurrency(+document.getElementById('crew').value || 0, currency).toFixed(2)}</td></tr>
+        <tr><td>Страховка</td><td>${convertCurrency(+document.getElementById('insurance').value || 0, currency).toFixed(2)}</td></tr>
+        <tr><td>Портовые</td><td>${convertCurrency(+document.getElementById('portFees').value || 0, currency).toFixed(2)}</td></tr>
+        <tr style="background:var(--table-header);"><td><b>ИТОГО</b></td><td><b>${costs.toFixed(2)}</b></td></tr>
+        <tr style="color:var(--success-color);"><td><b>ПРИБЫЛЬ</b></td><td><b>${profit.toFixed(2)}</b></td></tr>
+    `;
+    
+    if(chart) chart.destroy();
+    if(typeof Chart !== 'undefined') {
+        let ctx = document.getElementById('profitChart');
+        chart = new Chart(ctx, {
+            type: 'bar',
+            data: { labels: ['Доход', 'Расход', 'Прибыль'], datasets: [{ data: [revenue, costs, profit], backgroundColor: ['#10b981', '#ef4444', '#3b82f6'] }] }
+        });
+    }
+    
+    drawRoute(from, to);
+    saveToHistory(from.name, to.name, `${profit.toFixed(2)} ${symbol}`, currency);
+    
+    lastGanttData = { days: days, cargo: cargo, from: from.name, to: to.name };
+    renderGanttChart();
+}
+
+// ================= ДИАГРАММА ГАНТА =================
+function renderGanttChart() {
+    let container = document.getElementById('ganttChart');
+    if (!container) return;
+    if (!lastGanttData) { 
+        container.innerHTML = '<p style="text-align:center; color:var(--text-secondary);">📊 Выполните расчет рейса, чтобы увидеть диаграмму Ганта</p>'; 
+        return; 
+    }
+    let days = lastGanttData.days;
+    let prepDays = 2, loadDays = 3, sailDays = Math.max(1, Math.floor(days)), unloadDays = 2;
+    let total = prepDays + loadDays + sailDays + unloadDays;
+    let prepPct = (prepDays/total)*100;
+    let loadPct = (loadDays/total)*100;
+    let sailPct = (sailDays/total)*100;
+    let unloadPct = (unloadDays/total)*100;
+    
+    container.innerHTML = `
+        <h3 style="margin-bottom:20px;">🚢 Рейс: ${lastGanttData.from} → ${lastGanttData.to}</h3>
+        <div class="gantt-bar"><div class="gantt-label">📋 Подготовка</div><div class="gantt-progress"><div class="gantt-fill prepare-fill" style="width:${prepPct}%">${prepDays} дн</div></div></div>
+        <div class="gantt-bar"><div class="gantt-label">⚓ Погрузка</div><div class="gantt-progress"><div class="gantt-fill load-fill" style="width:${loadPct}%">${loadDays} дн</div></div></div>
+        <div class="gantt-bar"><div class="gantt-label">⛵ Плавание</div><div class="gantt-progress"><div class="gantt-fill sail-fill" style="width:${sailPct}%">${sailDays} дн</div></div></div>
+        <div class="gantt-bar"><div class="gantt-label">🏗️ Выгрузка</div><div class="gantt-progress"><div class="gantt-fill unload-fill" style="width:${unloadPct}%">${unloadDays} дн</div></div></div>
+        <div style="margin-top:20px; padding:10px; background:var(--bg-primary); border-radius:8px;">
+            <strong>📊 Итого: ${total} дней</strong><br>
+            📦 Груз: ${lastGanttData.cargo.toLocaleString('ru-RU')} тонн
+        </div>
+    `;
+}
+
+// ================= ТАБЫ =================
+function openTab(tabName) {
+    document.querySelectorAll('.tab-content').forEach(tab => tab.classList.remove('active'));
+    document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active'));
+    document.getElementById(`${tabName}Tab`).classList.add('active');
+    event.target.classList.add('active');
+    if(tabName === 'gantt') renderGanttChart();
+    if(tabName === 'favorites') renderFavorites();
+    if(tabName === 'history') renderUserHistory();
+}
+
+// ================= EXCEL =================
+function exportExcel() {
+    if(typeof XLSX === 'undefined'){ alert("Библиотека Excel не загружена"); return; }
+    let wb = XLSX.utils.book_new();
+    let data = [["Показатель","Значение"],["Дата",new Date().toLocaleString()],["Результат",document.getElementById('result').innerText || 'Нет данных']];
+    let ws = XLSX.utils.aoa_to_sheet(data);
+    XLSX.utils.book_append_sheet(wb, ws, "Отчет");
+    XLSX.writeFile(wb, `отчет_${Date.now()}.xlsx`);
+}
+
+// ================= ИНИЦИАЛИЗАЦИЯ =================
+function init() {
+    loadTheme();
+    initMap();
+    let f = document.getElementById('from');
+    let t = document.getElementById('to');
+    ports.forEach(p => { 
+        let o = document.createElement('option'); 
+        o.value = p.name; 
+        o.textContent = p.name; 
+        f.appendChild(o.cloneNode(true)); 
+        t.appendChild(o); 
+    });
+    fetchExchangeRates();
+    calculateCargoWeight();
+    document.getElementById('dwt').addEventListener('input', calculateCargoWeight);
+    document.getElementById('lw').addEventListener('input', calculateCargoWeight);
+    document.getElementById('ballast').addEventListener('input', calculateCargoWeight);
+    
+    // Показываем модальное окно для входа
+    document.getElementById('authModal').style.display = 'flex';
+    document.getElementById('authModal').classList.add('show');
+}
+
+// Запуск после загрузки страницы
+window.addEventListener('DOMContentLoaded', init);
+</script>
+</body>
+</html>
